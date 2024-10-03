@@ -34,10 +34,13 @@ const getVariantIdFromId = (id: number) => `gid://shopify/ProductVariant/${id}`;
 const nonEmptyArray = <T>(array: T[] | null | undefined) =>
   Array.isArray(array) && array.length > 0 ? array : null;
 
+const nonNullable = <T>(value: T): value is NonNullable<T> =>
+  value != null && typeof value !== "undefined";
+
 export const toProductPage = (
   product: ProductShopify,
   url: URL,
-  maybeSkuId?: number,
+  maybeSkuId?: number
 ): ProductDetailsPage => {
   const skuId = maybeSkuId
     ? getVariantIdFromId(maybeSkuId)
@@ -65,17 +68,19 @@ export const toProductPage = (
 
 export const toBreadcrumbList = (
   product: ProductShopify,
-  sku: SkuShopify,
+  sku: SkuShopify
 ): BreadcrumbList => {
   return {
     "@type": "BreadcrumbList",
     numberOfItems: 1,
-    itemListElement: [{
-      "@type": "ListItem",
-      name: product.title,
-      item: getPath(product, sku),
-      position: 1,
-    }],
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        name: product.title,
+        item: getPath(product, sku),
+        position: 1,
+      },
+    ],
   };
 };
 
@@ -83,7 +88,7 @@ export const toProduct = (
   product: ProductShopify,
   sku: SkuShopify,
   url: URL,
-  level = 0, // prevent inifinte loop while self referencing the product
+  level = 0 // prevent inifinte loop while self referencing the product
 ): Product => {
   const {
     createdAt,
@@ -106,20 +111,23 @@ export const toProduct = (
 
   const descriptionHtml: PropertyValue = {
     "@type": "PropertyValue",
-    "name": "descriptionHtml",
-    "value": product.descriptionHtml,
+    name: "descriptionHtml",
+    value: product.descriptionHtml,
   };
-  const additionalProperty: PropertyValue[] = selectedOptions.map(
-    toPropertyValue,
-  ).concat(descriptionHtml);
+  const additionalProperty: PropertyValue[] = selectedOptions
+    .map(toPropertyValue)
+    .concat(descriptionHtml);
   const skuImages = nonEmptyArray([image]);
-  const hasVariant = level < 1 &&
+  const hasVariant =
+    level < 1 &&
     variants.nodes.map((variant) => toProduct(product, variant, url, 1));
-  const priceSpec: UnitPriceSpecification[] = [{
-    "@type": "UnitPriceSpecification",
-    priceType: "https://schema.org/SalePrice",
-    price: Number(price.amount),
-  }];
+  const priceSpec: UnitPriceSpecification[] = [
+    {
+      "@type": "UnitPriceSpecification",
+      priceType: "https://schema.org/SalePrice",
+      price: Number(price.amount),
+    },
+  ];
 
   if (compareAtPrice) {
     priceSpec.push({
@@ -150,27 +158,38 @@ export const toProduct = (
         ...product.tags?.map((value) =>
           toPropertyValue({ name: "TAG", value })
         ),
-        ...product.collections?.nodes.map((
-          { title, handle, id, description, descriptionHtml, image },
-        ) =>
-          toPropertyValue({
-            "@id": id,
-            name: "COLLECTION",
-            value: title,
-            valueReference: handle,
-            description,
-            disambiguatingDescription: descriptionHtml,
-            ...(image &&
-              {
-                image: [{
-                  "@type": "ImageObject",
-                  encodingFormat: "image",
-                  alternateName: image.altText ?? "",
-                  url: image.url,
-                }],
+        ...product.collections?.nodes.map(
+          ({ title, handle, id, description, descriptionHtml, image }) =>
+            toPropertyValue({
+              "@id": id,
+              name: "COLLECTION",
+              value: title,
+              valueReference: handle,
+              description,
+              disambiguatingDescription: descriptionHtml,
+              ...(image && {
+                image: [
+                  {
+                    "@type": "ImageObject",
+                    encodingFormat: "image",
+                    alternateName: image.altText ?? "",
+                    url: image.url,
+                  },
+                ],
               }),
-          })
+            })
         ),
+        ...product.metafields
+          ?.filter(nonNullable)
+          .map(({ id, key, value, description }) =>
+            toPropertyValue({
+              "@id": id,
+              name: "METAFIELD",
+              identifier: key,
+              value,
+              description: description ?? undefined,
+            })
+          ),
       ],
       image: nonEmptyArray(images.nodes)?.map((img) => ({
         "@type": "ImageObject",
@@ -193,21 +212,23 @@ export const toProduct = (
         : Number(price.amount),
       lowPrice: Number(price.amount),
       offerCount: 1,
-      offers: [{
-        "@type": "Offer",
-        price: Number(price.amount),
-        availability: availableForSale
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock",
-        inventoryLevel: { value: quantityAvailable ?? 0 },
-        priceSpecification: priceSpec,
-      }],
+      offers: [
+        {
+          "@type": "Offer",
+          price: Number(price.amount),
+          availability: availableForSale
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock",
+          inventoryLevel: { value: quantityAvailable ?? 0 },
+          priceSpecification: priceSpec,
+        },
+      ],
     },
   };
 };
 
 const toPropertyValue = (
-  option: Omit<PropertyValue, "@type">,
+  option: Omit<PropertyValue, "@type">
 ): PropertyValue => ({
   "@type": "PropertyValue",
   ...option,

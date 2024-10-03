@@ -57,6 +57,7 @@ fragment Collection on Collection {
 
 const Product = gql`
 fragment Product on Product {
+  metafields
   availableForSale
   createdAt
   description
